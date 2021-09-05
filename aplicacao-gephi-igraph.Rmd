@@ -77,4 +77,5 @@ V(Stucont)$Gender[V(Stucont)$Gender=='Unknown'] <- NA #Unknow > NA
 V(Stucont)$Class # Nodelist por class
 
 Stucont[c(1:10),c(1:10)] # Adjacency matrix
+Stucont[c(1:10),c(1:10)]
 ```
