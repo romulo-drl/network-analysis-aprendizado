@@ -6,25 +6,60 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+
+#install.packages(c("igraph","RColorBrewer"))
+
+library(tidyverse)
+library(igraph)
+library(RColorBrewer)
+
 ```
 
-## R Markdown
+### Importação
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r}
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+# Casos e conexões (Nodes, Edges)
+primary_school <- read_csv('C:/Users/romul/Desktop/Projetos R/network_analysis/network-analysis-aprendizado/network-analysis-practice/igraph/primaryschool.csv') 
 
-```{r cars}
-summary(cars)
+# Nodos e características sociodemográficas  
+metadata <- read_csv("C:/Users/romul/Desktop/Projetos R/network_analysis/network-analysis-aprendizado/network-analysis-practice/igraph/metadata_primaryschool.csv")
+  
 ```
 
-## Including Plots
+### Manipulação dos datasets
 
-You can also embed plots, for example:
+#### Criação de uma coluna com os pesos das interações para cada indivíduo. Peso = contagem do número de interações
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r}
+
+primary_school_freq <- primary_school %>%
+  group_by(Source) %>% 
+  count(Target) %>% 
+  arrange(-n)
+  
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+#### Criação de um objeto igraph, atribuição dos pesos
+
+```{r}
+# Studant contact
+Stucont <- graph_from_data_frame(primary_school_freq,
+                                 directed = FALSE,
+                                 vertices = metadata)
+
+# Atribuição dos pesos para os edges do grafo
+E(Stucont)$weight <-E(Stucont)$n
+
+
+# Detalhamento estrutural 
+
+Stucont
+
+# 242 8317 singificam número de nodes e edges
+# UNW singifica undirected network, DNW directed network (W = edge weighted)
+# attr = attributes, name, class, gender (vertex attributes),
+      #  n e weight = edge attributes
+```
+
+### Data Exploration
