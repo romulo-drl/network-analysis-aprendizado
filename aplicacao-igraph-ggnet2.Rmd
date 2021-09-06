@@ -1,0 +1,390 @@
+---
+title: "Aplicação network analysis - gephi e igraph"
+author: "Rômulo Damasceno"
+date: "9/5/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+
+#install.packages(c("igraph","RColorBrewer"))
+
+library(tidyverse)
+library(igraph)
+library(RColorBrewer)
+```
+
+Outra fonte incrível pro igraph
+
+<https://kateto.net/network-visualization>
+
+### Importação
+
+```{r}
+
+# Casos e conexões (Nodes, Edges)
+primary_school <- read_csv('C:/Users/romul/Desktop/Projetos R/network_analysis/network-analysis-aprendizado/network-analysis-practice/igraph/primaryschool.csv') 
+
+# Nodos e características sociodemográficas  
+metadata <- read_csv("C:/Users/romul/Desktop/Projetos R/network_analysis/network-analysis-aprendizado/network-analysis-practice/igraph/metadata_primaryschool.csv")
+  
+```
+
+### Manipulação dos datasets
+
+#### Criação de uma coluna com os pesos das interações para cada indivíduo. Peso = contagem do número de interações
+
+```{r}
+
+primary_school_freq <- primary_school %>%
+  group_by(Source) %>% 
+  count(Target) %>% 
+  arrange(-n)
+  
+```
+
+#### Criação de um objeto igraph, atribuição dos pesos
+
+```{r}
+# Studant contact
+Stucont <- graph_from_data_frame(primary_school_freq,
+                                 directed = FALSE,
+                                 vertices = metadata)
+
+# Atribuição dos pesos para os edges do grafo
+E(Stucont)$weight <-E(Stucont)$n
+
+
+# Detalhamento estrutural 
+
+Stucont
+
+# 242 8317 singificam número de nodes e edges
+# UNW singifica undirected network, DNW directed network (W = edge weighted)
+# attr = attributes, name, class, gender (vertex attributes),
+      #  n e weight = edge attributes
+```
+
+### Data Exploration
+
+#### igraph summary
+
+```{r}
+Stucont
+gsize(Stucont) #Edges
+gorder(Stucont) #Nodes
+V(Stucont) #Nodelist
+E(Stucont) #Edgelist
+V(Stucont)$Gender # Nodelist por gender 
+V(Stucont)$Gender[V(Stucont)$Gender=='Unknown'] <- NA #Unknow > NA
+V(Stucont)$Class # Nodelist por class
+
+Stucont[c(1:10),c(1:10)] # Adjacency matrix
+```
+
+### Medidas de centralidade
+
+#### Degree centrality
+
+Tamanho dos vértices varia de acordo com a quantidade de edges conectados a ele e determina a quantidade de relações estabelecidas. É uma medida de poder e centralidade na rede.
+
+```{r}
+# Find the degrees (number of edges connected to the nodes)
+Stucont_deg <- degree(Stucont,mode=c("All")) #Mode = Directionality
+
+# Atribuição dos degrees a cada node/vertex
+V(Stucont)$degree <- Stucont_deg
+V(Stucont)$degree
+
+# Highest degree centrality (o valor abaixo do caso é o index, é uma medida posição, então não faz sentido olhar ali). Olhando o caso no stucont_deg mostra que o 1551 tem 131 edges conectados a ele.
+
+which.max(Stucont_deg) 
+
+```
+
+#### Eigenvector centrality
+
+O índice Eigenvector determina a posição de centralidade dos nodes partindo das relações que estes estabelecem com os entes mais influentes ou poderosos da rede.
+
+```{r}
+
+Stucont_eig <- evcent(Stucont)$vector #Gerando o eigenvector
+V(Stucont)$Eigen<-Stucont_eig #Atribuindo ao objeto principal
+V(Stucont)$Eigen # Eigenvector centrality por nodo
+which.max(Stucont_eig) # 1665 tem o maior eigenvector. Score normalizado
+
+```
+
+**Interpretação:** o indivíduo com maior eigenvector centrality, isto é, aquele que se conecta com os mais influentes da rede, é o 1665.
+
+#### Betweenness centrality
+
+Betweeness centrality é a medida que qualifica o nodo no que diz respeito ao seu potencial de conectar grupos distintos, isto é, um nodo que conecta dois ou mais grupos tem valores de betweeness bastante elevado. São também os gatekeepers, ou seja, aqueles que controlam o fluxo informacional entre grupos.
+
+```{r}
+Stucont_bw<-betweenness(Stucont, directed = FALSE)
+V(Stucont)$betweenness<-Stucont_bw
+V(Stucont)$betweenness
+which.max(Stucont_bw) # O indivíduo 1551 aparece novamente. É o mais influente (maior degree centrality) e também é o maior gatekeeper(betweenness centrality)
+```
+
+### Conversão do igraph em dataframe
+
+```{r}
+
+DF_final <- as_long_data_frame(Stucont)
+```
+
+Formato operacional de um data.frame comum. Os procedimentos estatísticos se aplicam.
+
+**Detalhamento:**
+
+1.  O número de linhas corresponde ao número de edges (relações)
+
+2.  From e To são os identificadores do indivíduo 1 e do indivíduo 2 da relação.
+
+3.  Weight é a frequência das relações
+
+4.  name é o ID (?)
+
+5.  O restante é from/to dos indicadores criados.
+
+    1.  Relacionar as medidas de centralidade pode dar umas pistas interessantes. Deve ser a base das análises.
+
+### Network Structure
+
+#### Network density
+
+Número de edges dividido pelo número total de edges. Coesão da rede.
+
+```{r}
+#1. Network Density
+edge_density(Stucont) # Global density
+A1<-induced_subgraph(Stucont, V(Stucont)[Class=="1A"], impl=c("auto")) # Subgraphing into each class
+edge_density(A1) # Class level density
+```
+
+#### Assortativity
+
+Assortativity é a medida que identifica se individuos de um mesmo grupo tendem a se relacionar mais consigo próprios ou com indivíduos de outros grupos (1 e -1 respectivamente)
+
+```{r}
+#2. Assortativity
+values <- as.numeric(factor(V(Stucont)$Class)) #values aqui.
+assortativity_nominal(Stucont, types=values)
+```
+
+O valor de assortativity observado precisa ser comparado com o de um grafo criado aleatoriamente.
+
+```{r}
+
+observed.assortativity <- assortativity_nominal(Stucont, types=values)
+results <- vector('list', 1000)
+
+for(i in 1:1000){results[[i]] <- assortativity_nominal(Stucont, sample(values))}
+
+#2.2.  Plot the distribution of assortativity values and add a red vertical line at the original observed value
+hist(unlist(results), xlim = c(0,0.4))
+abline(v = observed.assortativity,col = "red", lty = 3, lwd=2)
+```
+
+Uma vez que a linha de assortativity observada é .23 e a amostra de números aleatóriamente gerados está em torno de 0, pode-se inferir que são significativamente diferentes (precisa de algum teste de hipótese ainda, provavelmente um teste T?)
+
+### Network Visualization (Tentativa com ggplot2)
+
+#### Network with Degree Centrality
+
+```{r}
+
+set.seed(1001)
+
+pal<-brewer.pal(length(unique(V(Stucont)$Class)), "Set3") # Vertex color assigned per each class number
+
+
+plot(Stucont,
+     edge.color = 'black',
+     vertex.label.cex = 0.5,
+     vertex.color = pal[as.numeric(as.factor(vertex_attr(Stucont,
+                                                         "Class")))],
+     vertex.size = sqrt(Stucont_deg)/2,
+     edge.width= sqrt(E(Stucont)$weight/500),
+     layout = layout.fruchterman.reingold)
+
+```
+
+#### Visualização Eigenvector centrality
+
+```{r}
+set.seed(1001)
+plot(Stucont,
+     edge.color = 'black',
+     vertex.label.cex = 0.5,
+     vertex.color=pal[as.numeric(as.factor(vertex_attr(Stucont, "Class")))],
+     vertex.size = sqrt(Stucont_eig)*10, edge.width=sqrt(E(Stucont)$weight/800),
+     layout = layout.fruchterman.reingold)
+```
+
+#### Visualização betweenness centrality
+
+```{r}
+
+set.seed(1001)
+plot(Stucont,edge.color = 'black',vertex.label.cex =0.5,
+     vertex.color=pal[as.numeric(as.factor(vertex_attr(Stucont, "Class")))],
+     vertex.size = sqrt(Stucont_bw)/3, edge.width=sqrt(E(Stucont)$weight/800),
+     layout = layout_with_fr)
+```
+
+### Correlações entre indicadores
+
+#### Degree e betweeness
+
+```{r}
+plot(V(Stucont)$degree, V(Stucont)$betweenness)
+
+```
+
+#### Degree e Eigenvector centrality
+
+```{r}
+
+plot(V(Stucont)$degree, V(Stucont)$Eigen)
+```
+
+### Community detection - igraph
+
+```{r}
+#1. Louvain clustering
+lc <- cluster_louvain(Stucont) # Create a cluster based on the Louvain method
+communities(lc) # You can check which vertices belongs to which clusters.
+
+```
+
+#### Plotagem
+
+```{r}
+set.seed(1001) # To duplicate the computer process and create exactly the same network repetitively you should set the seed.
+plot(lc, Stucont, edge.color = adjustcolor('black', alpha.f = 0.5), vertex.label.cex =0.5,
+     vertex.color=pal[as.numeric(as.factor(vertex_attr(Stucont, "Class")))],
+     vertex.size = sqrt(Stucont_bw)/3, edge.width=sqrt(E(Stucont)$weight/800),
+     layout = layout.fruchterman.reingold)
+```
+
+## Abordagem com o ggnet2 
+
+ggnet2 e GGally são os pacotes que vão permitir trabalhar com networks num ambiente tidyverse.
+
+**Duas fontes fantásticas:**
+
+<https://kateto.net/network-visualization> (Aprofundamento no igraph)
+
+<https://briatte.github.io/ggnet/> (daqui pra frente)
+
+```{r}
+
+#install.packages(c('network', 'sna', 'intergraph'))
+
+library(intergraph)
+library(GGally)
+library(network)
+library(sna)
+library(ggplot2)
+```
+
+### Grafo aleatório
+
+```{r}
+# random bernoulli graph
+net = rgraph(10, mode = "graph", tprob = 0.5)
+net = network(net, directed = FALSE)
+
+# vertex names
+network.vertex.names(net) = letters[1:10]
+
+```
+
+### Visualização do grafo com o ggnet2
+
+```{r}
+ggnet2(net)
+```
+
+O único argumento requerido pelo ggnet2 é um grafo em formato network (transformado pelo pacote)
+
+#### Modificação das cores e do tamanho dos nodos (e grafo da atividade anterior)
+
+```{r}
+# Argumentos básicos do grafo
+ggnet2(net, node.size = 6,
+       node.color = "black",
+       edge.size = 1,
+       edge.color = "grey")
+
+# Definição de cor
+ggnet2(net,
+       size = 6,
+       color = rep(c("tomato", "steelblue"), 5)) #Não parece muito prático
+
+# Tentando com a rede da atividade anterior
+ggnet2(Stucont,
+       node.size = 6,
+       node.color = "black",
+       edge.size = 1,
+       edge.color = "grey")
+```
+
+### Node placement
+
+Default: [Fruchterman-Reingold force-directed algorithm](http://www.rdocumentation.org/packages/sna/functions/gplot.layout)
+
+```{r}
+#Outras possibilidades
+
+ggnet2(net, mode = "circle")
+ggnet2(net, mode = "kamadakawai")
+```
+
+### Node colors
+
+```{r}
+
+net %v% "phono" = ifelse(letters[1:10] %in% c("a", "e", "i"), "vowel", "consonant")
+
+ggnet2(net, color = "phono")
+```
+
+```{r}
+
+net %v% "color" = ifelse(net %v% "phono" == "vowel", "steelblue", "tomato")
+ggnet2(net, color = "color")
+```
+
+#### Outras opções de customização de cores
+
+```{r}
+ggnet2(net, color = "phono",
+       palette = c("vowel" = "steelblue", "consonant" = "tomato"))
+
+ggnet2(net, color = ifelse(net %v% "phono" == "vowel", "steelblue", "tomato"))
+```
+
+#### Paletas pré-definidas
+
+```{r}
+ggnet2(net, color = "phono", palette = "Set2")
+```
+
+#### Node sizes
+
+```{r}
+
+ggnet2(net, size = "phono") #size.palette
+```
+
+#### Measure centrality 
+
+```{r}
+ggnet2(net, size = "degree")
+```
