@@ -4,7 +4,7 @@ author: "Rômulo Damasceno"
 date: "9/5/2021"
 output: html_document
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -271,3 +271,116 @@ plot(lc, Stucont, edge.color = adjustcolor('black', alpha.f = 0.5), vertex.label
 ## Abordagem com o ggnet2 
 
 ggnet2 e GGally são os pacotes que vão permitir trabalhar com networks num ambiente tidyverse.
+
+**Duas fontes fantásticas:**
+
+<https://kateto.net/network-visualization> (Aprofundamento no igraph)
+
+<https://briatte.github.io/ggnet/> (daqui pra frente)
+
+```{r}
+
+#install.packages(c('network', 'sna', 'intergraph'))
+
+library(intergraph)
+library(GGally)
+library(network)
+library(sna)
+library(ggplot2)
+```
+
+### Grafo aleatório
+
+```{r}
+# random bernoulli graph
+net = rgraph(10, mode = "graph", tprob = 0.5)
+net = network(net, directed = FALSE)
+
+# vertex names
+network.vertex.names(net) = letters[1:10]
+
+```
+
+### Visualização do grafo com o ggnet2
+
+```{r}
+ggnet2(net)
+```
+
+O único argumento requerido pelo ggnet2 é um grafo em formato network (transformado pelo pacote)
+
+#### Modificação das cores e do tamanho dos nodos (e grafo da atividade anterior)
+
+```{r}
+# Argumentos básicos do grafo
+ggnet2(net, node.size = 6,
+       node.color = "black",
+       edge.size = 1,
+       edge.color = "grey")
+
+# Definição de cor
+ggnet2(net,
+       size = 6,
+       color = rep(c("tomato", "steelblue"), 5)) #Não parece muito prático
+
+# Tentando com a rede da atividade anterior
+ggnet2(Stucont,
+       node.size = 6,
+       node.color = "black",
+       edge.size = 1,
+       edge.color = "grey")
+```
+
+### Node placement
+
+Default: [Fruchterman-Reingold force-directed algorithm](http://www.rdocumentation.org/packages/sna/functions/gplot.layout)
+
+```{r}
+#Outras possibilidades
+
+ggnet2(net, mode = "circle")
+ggnet2(net, mode = "kamadakawai")
+```
+
+### Node colors
+
+```{r}
+
+net %v% "phono" = ifelse(letters[1:10] %in% c("a", "e", "i"), "vowel", "consonant")
+
+ggnet2(net, color = "phono")
+```
+
+```{r}
+
+net %v% "color" = ifelse(net %v% "phono" == "vowel", "steelblue", "tomato")
+ggnet2(net, color = "color")
+```
+
+#### Outras opções de customização de cores
+
+```{r}
+ggnet2(net, color = "phono",
+       palette = c("vowel" = "steelblue", "consonant" = "tomato"))
+
+ggnet2(net, color = ifelse(net %v% "phono" == "vowel", "steelblue", "tomato"))
+```
+
+#### Paletas pré-definidas
+
+```{r}
+ggnet2(net, color = "phono", palette = "Set2")
+```
+
+#### Node sizes
+
+```{r}
+
+ggnet2(net, size = "phono") #size.palette
+```
+
+#### Measure centrality 
+
+```{r}
+ggnet2(net, size = "degree")
+```
